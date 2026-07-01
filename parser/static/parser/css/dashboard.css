@@ -1,0 +1,269 @@
+/* =======================================================
+   GLOBAL
+======================================================= */
+
+body{
+
+    background:#f4f7fb;
+
+    font-family:Segoe UI,Tahoma,Geneva,Verdana,sans-serif;
+
+    color:#2c3e50;
+
+}
+
+/* =======================================================
+   HEADER
+======================================================= */
+
+h1{
+
+    letter-spacing:1px;
+
+}
+
+/* =======================================================
+   CARDS
+======================================================= */
+
+.card{
+
+    border-radius:20px;
+
+    transition:.25s;
+
+}
+
+.card:hover{
+
+    transform:translateY(-4px);
+
+    box-shadow:0 15px 30px rgba(0,0,0,.08);
+
+}
+
+/* =======================================================
+   UPLOAD PANEL
+======================================================= */
+
+#uploadForm label{
+
+    font-weight:600;
+
+    margin-bottom:8px;
+
+}
+
+#uploadForm input{
+
+    height:50px;
+
+}
+
+#uploadButton{
+
+    height:52px;
+
+    border-radius:12px;
+
+    font-weight:600;
+
+}
+
+#newRecon{
+
+    border-radius:12px;
+
+    height:50px;
+
+}
+
+/* =======================================================
+   SUMMARY CARDS
+======================================================= */
+
+.summary-card{
+
+    background:white;
+
+    border-radius:18px;
+
+    padding:25px;
+
+    text-align:center;
+
+    box-shadow:0 10px 25px rgba(0,0,0,.06);
+
+    transition:.25s;
+
+}
+
+.summary-card:hover{
+
+    transform:translateY(-5px);
+
+}
+
+.summary-title{
+
+    color:#7f8c8d;
+
+    font-size:15px;
+
+    margin-bottom:10px;
+
+}
+
+.summary-value{
+
+    font-size:34px;
+
+    font-weight:700;
+
+}
+
+/* =======================================================
+   CHART CARDS
+======================================================= */
+
+.chart-card{
+
+    background:white;
+
+    padding:25px;
+
+    border-radius:18px;
+
+    box-shadow:0 10px 25px rgba(0,0,0,.06);
+
+    min-height:350px;
+
+}
+
+.chart-card h5{
+
+    margin-bottom:20px;
+
+    font-weight:600;
+
+}
+
+/* =======================================================
+   TABLE
+======================================================= */
+
+.table{
+
+    margin-bottom:0;
+
+}
+
+.table thead{
+
+    background:#eef3fa;
+
+}
+
+.table thead th{
+
+    border:none;
+
+    color:#34495e;
+
+    font-weight:600;
+
+}
+
+.table tbody tr{
+
+    transition:.2s;
+
+}
+
+.table tbody tr:hover{
+
+    background:#f8fbff;
+
+}
+
+/* =======================================================
+   STATUS BADGES
+======================================================= */
+
+.status-success{
+
+    background:#d4edda;
+
+    color:#155724;
+
+    padding:6px 14px;
+
+    border-radius:50px;
+
+    font-size:13px;
+
+}
+
+.status-danger{
+
+    background:#f8d7da;
+
+    color:#721c24;
+
+    padding:6px 14px;
+
+    border-radius:50px;
+
+    font-size:13px;
+
+}
+
+/* =======================================================
+   DASHBOARD
+======================================================= */
+
+#dashboard{
+
+    animation:fadeIn .4s ease;
+
+}
+
+@keyframes fadeIn{
+
+    from{
+
+        opacity:0;
+
+        transform:translateY(15px);
+
+    }
+
+    to{
+
+        opacity:1;
+
+        transform:translateY(0);
+
+    }
+
+}
+
+/* =======================================================
+   RESPONSIVE
+======================================================= */
+
+@media(max-width:992px){
+
+    .summary-card{
+
+        margin-bottom:15px;
+
+    }
+
+    .chart-card{
+
+        margin-bottom:20px;
+
+    }
+
+}

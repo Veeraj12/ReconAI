@@ -1,0 +1,19 @@
+body{
+    background:#f4f6f9;
+}
+
+.card{
+    border-radius:18px;
+}
+
+h1{
+    color:#1d3557;
+}
+
+.btn-primary{
+    border-radius:10px;
+}
+
+#status{
+    border-radius:12px;
+}

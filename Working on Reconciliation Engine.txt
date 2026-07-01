@@ -1,0 +1,44 @@
+-- Working on parser 
+Parsing from bank file & Tally File 
+
+-- Working on Reconciliation Engine 
+
+SO How do we know both entries from both files match 
+for that we need to define confidence level 
+depending on how many properties actually match
+
+so for now I am going to define -> 
+Rule 1 (100%)
+
+Reference matches AND Amount matches
+
+↓
+
+Matched.
+
+
+Rule 2 (95%)
+
+Reference missing while Amount matches & Date matches
+
+↓
+
+Likely matched.
+
+
+Rule 3 (90%)
+
+Reference missing while Amount matches & Description similar
+
+↓
+
+Likely matched.
+
+
+Rule 4 (80%)
+
+Description similar & Amount similar also Date within ±2 days
+
+↓
+
+Possible match.
