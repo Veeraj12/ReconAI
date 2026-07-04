@@ -1,19 +1,10 @@
-body{
-    background:#f4f6f9;
-}
+/* =======================================================
+   DEPRECATED
 
-.card{
-    border-radius:18px;
-}
-
-h1{
-    color:#1d3557;
-}
-
-.btn-primary{
-    border-radius:10px;
-}
-
-#status{
-    border-radius:12px;
-}
+   All rules formerly here (body background, .card radius,
+   h1 color, .btn-primary radius, #status radius) have been
+   migrated into dashboard.css, which is now the single
+   enterprise theme for this app. This file is no longer
+   linked from index.html and is safe to delete once you've
+   confirmed no other template still references it.
+======================================================= */

@@ -1,57 +1,40 @@
 {
     "parserName": "Generic Bank Parser",
-
     "supportedExtensions": [
         ".xlsx",
         ".xls",
         ".csv"
     ],
-
-    "requiredHeaders":{
-
-        "critical":[
-
+    "requiredHeaders": {
+        "critical": [
             "date"
-
         ],
-
-        "recommended":[
-
+        "recommended": [
             "reference",
-
             "debit",
-
-            "credit"
-
+            "credit",
+            "amount",
+            "transactionType"
         ],
-
-        "optional":[
-
+        "optional": [
             "description",
-
             "voucher",
-
             "ledger"
-
         ]
     },
-
     "optionalColumns": [
         "reference",
         "debit",
         "credit",
         "balance"
     ],
-
     "headerMapping": {
-
         "date": [
             "date",
             "transaction date",
             "txn date",
             "value date"
         ],
-
         "description": [
             "description",
             "narration",
@@ -59,7 +42,6 @@
             "particulars",
             "details"
         ],
-
         "reference": [
             "reference",
             "utr",
@@ -69,20 +51,32 @@
             "cheque no",
             "cheque number"
         ],
-
         "debit": [
             "debit",
             "withdrawal",
             "withdraw",
             "dr"
         ],
-
         "credit": [
             "credit",
             "deposit",
             "cr"
         ],
-
+        "transactionType": [
+            "transactiontype",
+            "transaction type",
+            "type",
+            "dr/cr",
+            "drcr",
+            "dc"
+        ],
+        "amount": [
+            "amount",
+            "transaction amount",
+            "txn amount",
+            "amt",
+            "value"
+        ],
         "balance": [
             "balance",
             "closing balance",

@@ -1,23 +1,26 @@
-// ==========================================
+// =====================================================
 // Upload Form
-// ==========================================
+// =====================================================
 
 const form = document.getElementById("uploadForm");
 
-const csrfToken = document.querySelector("[name=csrfmiddlewaretoken]").value;
+const csrfToken =
+    document.querySelector("[name=csrfmiddlewaretoken]").value;
 
 
-// ==========================================
+// =====================================================
 // Upload Event
-// ==========================================
+// =====================================================
 
 form.addEventListener("submit", async (event) => {
 
     event.preventDefault();
 
-    const bank = document.getElementById("bankFile").files[0];
+    const bank =
+        document.getElementById("bankFile").files[0];
 
-    const tally = document.getElementById("tallyFile").files[0];
+    const tally =
+        document.getElementById("tallyFile").files[0];
 
     if (!bank || !tally) {
 
@@ -31,9 +34,7 @@ form.addEventListener("submit", async (event) => {
 
     uploadButton.innerHTML = `
 
-        <span
-            class="spinner-border spinner-border-sm me-2">
-        </span>
+        <span class="spinner-border spinner-border-sm me-2"></span>
 
         Processing...
 
@@ -47,23 +48,29 @@ form.addEventListener("submit", async (event) => {
 
     try {
 
-        const response = await fetch("/api/upload/", {
+        const response = await fetch(
 
-            method: "POST",
+            "/api/upload/",
 
-            headers: {
+            {
 
-                "X-CSRFToken": csrfToken
+                method: "POST",
 
-            },
+                headers: {
 
-            body: formData
+                    "X-CSRFToken": csrfToken
 
-        });
+                },
+
+                body: formData
+
+            }
+
+        );
 
         if (!response.ok) {
 
-            throw new Error("Upload failed.");
+            throw new Error("Upload Failed");
 
         }
 
@@ -71,25 +78,57 @@ form.addEventListener("submit", async (event) => {
 
         console.log(data);
 
-        // ======================================
+        // ==========================================
+        // Calculate Statistics
+        // ==========================================
+
+        const statistics =
+
+            calculateStatistics(data);
+
+        // ==========================================
         // Dashboard
-        // ======================================
+        // ==========================================
 
         showDashboard();
 
         lockUploadPanel();
 
-        updateSummary(data.summary);
+        updateSummary(
 
-        populateMismatchTable(data);
+            data.summary,
 
-        // Charts (Next Step)
+            statistics
 
-        if (typeof renderCharts === "function") {
+        );
 
-            renderCharts(data);
+        updateStatistics(
 
-        }
+            statistics
+
+        );
+
+        // ==========================================
+        // Tables
+        // ==========================================
+
+        populateTables(
+
+            data
+
+        );
+
+        // ==========================================
+        // Charts
+        // ==========================================
+
+        renderCharts(
+
+            data,
+
+            statistics
+
+        );
 
     }
 
@@ -101,7 +140,10 @@ form.addEventListener("submit", async (event) => {
 
         uploadButton.disabled = false;
 
-        uploadButton.innerHTML = "Start Reconciliation";
+        uploadButton.innerHTML =
+
+            `<i class="bi bi-play-fill me-2"></i>
+             Start Reconciliation`;
 
     }
 

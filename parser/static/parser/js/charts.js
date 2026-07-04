@@ -1,14 +1,28 @@
-// ==========================================
+// =====================================================
 // Chart Instances
-// ==========================================
+// =====================================================
 
 let summaryChart = null;
 let ruleChart = null;
 
+// Fixed label set for the rule-distribution chart so the axis
+// stays stable across reconciliations, even when a rule has
+// zero matches for a given run.
 
-// ==========================================
+const RULE_LABELS = {
+
+    REFERENCE: "Reference",
+
+    REFERENCE_DATE_TOLERANCE: "Reference (Date Tolerance)",
+
+    AMOUNT_DATE: "Amount / Date"
+
+};
+
+
+// =====================================================
 // Destroy Existing Charts
-// ==========================================
+// =====================================================
 
 function destroyCharts() {
 
@@ -27,24 +41,24 @@ function destroyCharts() {
 }
 
 
-// ==========================================
-// Render Charts
-// ==========================================
+// =====================================================
+// Render All Charts
+// =====================================================
 
-function renderCharts(data) {
+function renderCharts(data, statistics) {
 
     destroyCharts();
 
     renderSummaryChart(data.summary);
 
-    renderRuleChart(data);
+    renderRuleChart(statistics.ruleCounts);
 
 }
 
 
-// ==========================================
+// =====================================================
 // Summary Pie Chart
-// ==========================================
+// =====================================================
 
 function renderSummaryChart(summary) {
 
@@ -109,31 +123,17 @@ function renderSummaryChart(summary) {
 }
 
 
-// ==========================================
+// =====================================================
 // Rule Distribution
-// ==========================================
+// =====================================================
 
-function renderRuleChart(data) {
-
-    const ruleCount = {};
-
-    data.matchedTransactions.forEach(match => {
-
-        const rule = match.matchingRule;
-
-        if (!ruleCount[rule]) {
-
-            ruleCount[rule] = 0;
-
-        }
-
-        ruleCount[rule]++;
-
-    });
+function renderRuleChart(ruleCounts) {
 
     const ctx = document
         .getElementById("ruleChart")
         .getContext("2d");
+
+    const ruleKeys = Object.keys(RULE_LABELS);
 
     ruleChart = new Chart(ctx, {
 
@@ -141,15 +141,15 @@ function renderRuleChart(data) {
 
         data: {
 
-            labels: Object.keys(ruleCount),
+            labels: ruleKeys.map(key => RULE_LABELS[key]),
 
             datasets: [
 
                 {
 
-                    label: "Matches",
+                    label: "Matched Transactions",
 
-                    data: Object.values(ruleCount)
+                    data: ruleKeys.map(key => ruleCounts[key] || 0)
 
                 }
 
@@ -175,7 +175,13 @@ function renderRuleChart(data) {
 
                 y: {
 
-                    beginAtZero: true
+                    beginAtZero: true,
+
+                    ticks: {
+
+                        precision: 0
+
+                    }
 
                 }
 

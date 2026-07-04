@@ -1,36 +1,56 @@
-// ==========================================
+// =====================================================
 // Dashboard Elements
-// ==========================================
+// =====================================================
+// UI-only module: rendering, visibility, and panel state.
+// No calculations happen here — all derived numbers come
+// from statistics.js via calculateStatistics().
+// =====================================================
 
 const dashboard = document.getElementById("dashboard");
+
+// Summary Cards (includes Match %)
 
 const bankCount = document.getElementById("bankCount");
 const tallyCount = document.getElementById("tallyCount");
 const matchedCount = document.getElementById("matchedCount");
 const mismatchCount = document.getElementById("mismatchCount");
+const matchPercentage = document.getElementById("matchPercentage");
 
-const mismatchTable = document.getElementById("mismatchTable");
+// Statistics
 
-const uploadButton = document.getElementById("uploadButton");
-const bankFile = document.getElementById("bankFile");
-const tallyFile = document.getElementById("tallyFile");
-const newRecon = document.getElementById("newRecon");
+const referenceMatches =
+    document.getElementById("referenceMatches");
+
+const amountDateMatches =
+    document.getElementById("amountDateMatches");
+
+const duplicateEntries =
+    document.getElementById("duplicateEntries");
+
+// Upload Panel
+
+const uploadButton =
+    document.getElementById("uploadButton");
+
+const bankFile =
+    document.getElementById("bankFile");
+
+const tallyFile =
+    document.getElementById("tallyFile");
+
+const newRecon =
+    document.getElementById("newRecon");
 
 
-// ==========================================
-// Show Dashboard
-// ==========================================
+// =====================================================
+// Dashboard Visibility
+// =====================================================
 
 function showDashboard() {
 
     dashboard.classList.remove("d-none");
 
 }
-
-
-// ==========================================
-// Hide Dashboard
-// ==========================================
 
 function hideDashboard() {
 
@@ -39,9 +59,9 @@ function hideDashboard() {
 }
 
 
-// ==========================================
-// Lock Upload Panel
-// ==========================================
+// =====================================================
+// Upload Panel
+// =====================================================
 
 function lockUploadPanel() {
 
@@ -55,16 +75,14 @@ function lockUploadPanel() {
 
     uploadButton.classList.add("btn-success");
 
-    uploadButton.innerHTML = "Reconciliation Complete";
+    uploadButton.innerHTML =
+
+        `<i class="bi bi-check-circle me-2"></i>
+         Reconciliation Complete`;
 
     newRecon.classList.remove("d-none");
 
 }
-
-
-// ==========================================
-// Unlock Upload Panel
-// ==========================================
 
 function unlockUploadPanel() {
 
@@ -74,7 +92,14 @@ function unlockUploadPanel() {
 
     uploadButton.disabled = false;
 
-    uploadButton.innerText = "Start Reconciliation";
+    uploadButton.classList.remove("btn-success");
+
+    uploadButton.classList.add("btn-primary");
+
+    uploadButton.innerHTML =
+
+        `<i class="bi bi-play-fill me-2"></i>
+         Start Reconciliation`;
 
     bankFile.value = "";
 
@@ -85,128 +110,97 @@ function unlockUploadPanel() {
 }
 
 
-// ==========================================
-// Update Summary Cards
-// ==========================================
+// =====================================================
+// Summary Cards
+// =====================================================
+// summary  -> raw backend totals (bank/tally/matched counts)
+// statistics -> derived values from statistics.js
+//               (totalMismatch, matchPercentage)
 
-function updateSummary(summary) {
+function updateSummary(summary, statistics) {
 
-    bankCount.innerText =
+    bankCount.textContent =
         summary.totalBankTransactions;
 
-    tallyCount.innerText =
+    tallyCount.textContent =
         summary.totalTallyTransactions;
 
-    matchedCount.innerText =
+    matchedCount.textContent =
         summary.matchedTransactions;
 
-    mismatchCount.innerText =
-        summary.missingInBank +
-        summary.missingInTally;
+    mismatchCount.textContent =
+        statistics.totalMismatch;
+
+    matchPercentage.textContent =
+        statistics.matchPercentage + "%";
 
 }
 
 
-// ==========================================
-// Populate Mismatch Table
-// ==========================================
+// =====================================================
+// Statistics Cards
+// =====================================================
 
-function populateMismatchTable(data) {
+function updateStatistics(stats) {
 
-    mismatchTable.innerHTML = "";
+    referenceMatches.textContent =
+        stats.referenceMatches;
 
-    // Missing In Bank
+    amountDateMatches.textContent =
+        stats.amountDateMatches;
 
-    data.missingInBank.forEach(transaction => {
-
-        mismatchTable.innerHTML += `
-
-        <tr>
-
-            <td>-</td>
-
-            <td>${transaction.excelRow}</td>
-
-            <td>${transaction.reference ?? "-"}</td>
-
-            <td>${transaction.amount ?? "-"}</td>
-
-            <td>
-
-                <span class="badge bg-warning">
-
-                    Missing In Bank
-
-                </span>
-
-            </td>
-
-        </tr>
-
-        `;
-
-    });
-
-
-    // Missing In Tally
-
-    data.missingInTally.forEach(transaction => {
-
-        mismatchTable.innerHTML += `
-
-        <tr>
-
-            <td>${transaction.excelRow}</td>
-
-            <td>-</td>
-
-            <td>${transaction.reference ?? "-"}</td>
-
-            <td>${transaction.amount ?? "-"}</td>
-
-            <td>
-
-                <span class="badge bg-danger">
-
-                    Missing In Tally
-
-                </span>
-
-            </td>
-
-        </tr>
-
-        `;
-
-    });
+    duplicateEntries.textContent =
+        stats.duplicateEntries;
 
 }
 
 
-// ==========================================
+// =====================================================
 // Reset Dashboard
-// ==========================================
+// =====================================================
 
 function resetDashboard() {
 
     hideDashboard();
 
-    mismatchTable.innerHTML = "";
+    updateSummary(
 
-    bankCount.innerText = 0;
+        {
 
-    tallyCount.innerText = 0;
+            totalBankTransactions: 0,
 
-    matchedCount.innerText = 0;
+            totalTallyTransactions: 0,
 
-    mismatchCount.innerText = 0;
+            matchedTransactions: 0
+
+        },
+
+        {
+
+            totalMismatch: 0,
+
+            matchPercentage: "0.00"
+
+        }
+
+    );
+
+    updateStatistics({
+
+        referenceMatches: 0,
+
+        amountDateMatches: 0,
+
+        duplicateEntries: 0
+
+    });
 
 }
 
 
-// ==========================================
+// =====================================================
 // New Reconciliation
-// ==========================================
+// =====================================================
 
 newRecon.addEventListener("click", () => {
 
