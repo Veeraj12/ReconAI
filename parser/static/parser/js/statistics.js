@@ -9,106 +9,6 @@
 // calculated — dashboard.js must not recompute any of them.
 // ==========================================
 
-// function calculateStatistics(data) {
-
-//     const statistics = {
-
-//         referenceMatches: 0,
-
-//         amountDateMatches: 0,
-
-//         duplicateEntries: 0,
-
-//         matchPercentage: 0,
-
-//         totalMismatch: 0,
-
-//         ruleCounts: {}
-
-//     };
-
-//     // ==========================================
-//     // Rule Counts
-//     // ==========================================
-
-//     data.matchedTransactions.forEach(match => {
-
-//         const rule = match.matchingRule;
-
-//         if (!statistics.ruleCounts[rule]) {
-
-//             statistics.ruleCounts[rule] = 0;
-
-//         }
-
-//         statistics.ruleCounts[rule]++;
-
-//     });
-
-//     statistics.referenceMatches =
-//         statistics.ruleCounts["REFERENCE"] || 0;
-
-//     statistics.amountDateMatches =
-//         statistics.ruleCounts["AMOUNT_DATE"] || 0;
-
-//     // ==========================================
-//     // Duplicate Entries
-//     // ==========================================
-
-//     const references = new Set();
-
-//     data.missingInBank.forEach(transaction => {
-
-//         const reference = transaction.reference;
-
-//         if (!reference)
-//             return;
-
-//         if (references.has(reference)) {
-
-//             statistics.duplicateEntries++;
-
-//         }
-
-//         else {
-
-//             references.add(reference);
-
-//         }
-
-//     });
-
-//     // ==========================================
-//     // Match Percentage
-//     // ==========================================
-
-//     statistics.matchPercentage = (
-
-//         data.summary.matchedTransactions
-
-//         /
-
-//         data.summary.totalBankTransactions
-
-//     ) * 100;
-
-//     statistics.matchPercentage =
-//         statistics.matchPercentage.toFixed(2);
-
-//     // ==========================================
-//     // Total Mismatch
-//     // ==========================================
-
-//     statistics.totalMismatch =
-
-//         data.summary.missingInBank +
-
-//         data.summary.missingInTally;
-
-//     return statistics;
-
-// }
-
 // ==========================================
 // Statistics Calculator
 // ==========================================
@@ -128,7 +28,7 @@ function calculateStatistics(data) {
 
     const summary = data.summary;
 
-    const statistics = {
+    return {
 
         referenceMatches: summary.referenceMatches || 0,
 
@@ -142,23 +42,19 @@ function calculateStatistics(data) {
 
         totalMismatch: summary.missingInBank + summary.missingInTally,
 
-        ruleCounts: {}
+        // Sourced directly from summary — avoids looping the full
+        // matchedTransactions array client-side, which can be
+        // hundreds of thousands of rows on large reconciliations.
+        ruleCounts: {
+
+            REFERENCE: summary.referenceMatches || 0,
+
+            REFERENCE_DATE_TOLERANCE: summary.dateToleranceMatches || 0,
+
+            AMOUNT_DATE: summary.amountDateMatches || 0,
+
+        },
 
     };
-
-    // ==========================================
-    // Rule Counts (for the Match Rules chart)
-    // ==========================================
-
-    data.matchedTransactions.forEach(match => {
-
-        const rule = match.matchingRule;
-
-        statistics.ruleCounts[rule] =
-            (statistics.ruleCounts[rule] || 0) + 1;
-
-    });
-
-    return statistics;
 
 }

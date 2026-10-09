@@ -1,4 +1,76 @@
 // =====================================================
+// Pagination
+// =====================================================
+// Setting .innerHTML with tens or hundreds of thousands of <tr>
+// elements is what actually freezes the browser on large
+// reconciliations — not the backend, and not the network transfer.
+// Every table renders at most PAGE_SIZE rows at a time; Previous/Next
+// re-render just the current page from the already-fetched data
+// (no additional network requests).
+
+const PAGE_SIZE = 200;
+
+function setupPaginatedTable(tableId, rows, rowRenderer) {
+
+    const tbody = document.getElementById(tableId);
+    const pager = document.getElementById(tableId + "Pager");
+
+    const totalRows = rows.length;
+    const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE));
+
+    let currentPage = 0;
+
+    function renderPage() {
+
+        const start = currentPage * PAGE_SIZE;
+        const pageRows = rows.slice(start, start + PAGE_SIZE);
+
+        tbody.innerHTML = pageRows.map(rowRenderer).join("");
+
+        if (pager) {
+
+            const info = pager.querySelector(".page-info");
+            const prevBtn = pager.querySelector(".prev-btn");
+            const nextBtn = pager.querySelector(".next-btn");
+
+            info.textContent = totalRows === 0
+                ? "No rows"
+                : `Showing ${start + 1}-${Math.min(start + PAGE_SIZE, totalRows)} of ${totalRows}`;
+
+            prevBtn.disabled = currentPage === 0;
+            nextBtn.disabled = currentPage >= totalPages - 1;
+
+        }
+
+    }
+
+    if (pager) {
+
+        const prevBtn = pager.querySelector(".prev-btn");
+        const nextBtn = pager.querySelector(".next-btn");
+
+        prevBtn.onclick = () => {
+            if (currentPage > 0) {
+                currentPage--;
+                renderPage();
+            }
+        };
+
+        nextBtn.onclick = () => {
+            if (currentPage < totalPages - 1) {
+                currentPage++;
+                renderPage();
+            }
+        };
+
+    }
+
+    renderPage();
+
+}
+
+
+// =====================================================
 // Table Elements
 // =====================================================
 
@@ -97,34 +169,31 @@ function clearTables() {
 // Matched Transactions
 // =====================================================
 
+function matchedRowHtml(match) {
+
+    const bank = match.bankTransaction;
+    const tally = match.tallyTransaction;
+
+    return `
+        <tr>
+            <td>${bank.date ?? "-"}</td>
+            <td>${bank.excelRow}</td>
+            <td>${tally.excelRow}</td>
+            <td>${bank.reference ?? "-"}</td>
+            <td>${bank.amount ?? "-"}</td>
+            <td>
+                <span class="badge bg-success">
+                    ${match.matchingRule}
+                </span>
+            </td>
+        </tr>
+    `;
+
+}
+
 function populateMatchedTable(matches) {
 
-    const rows = matches.map(match => {
-
-        const bank =
-            match.bankTransaction;
-
-        const tally =
-            match.tallyTransaction;
-
-        return `
-            <tr>
-                <td>${bank.date ?? "-"}</td>
-                <td>${bank.excelRow}</td>
-                <td>${tally.excelRow}</td>
-                <td>${bank.reference ?? "-"}</td>
-                <td>${bank.amount ?? "-"}</td>
-                <td>
-                    <span class="badge bg-success">
-                        ${match.matchingRule}
-                    </span>
-                </td>
-            </tr>
-        `;
-
-    });
-
-    matchedTable.innerHTML = rows.join("");
+    setupPaginatedTable("matchedTable", matches, matchedRowHtml);
 
 }
 
@@ -156,15 +225,13 @@ function missingRowHtml(transaction) {
 
 function populateMissingBankTable(transactions) {
 
-    missingBankTable.innerHTML =
-        transactions.map(missingRowHtml).join("");
+    setupPaginatedTable("missingBankTable", transactions, missingRowHtml);
 
 }
 
 function populateMissingTallyTable(transactions) {
 
-    missingTallyTable.innerHTML =
-        transactions.map(missingRowHtml).join("");
+    setupPaginatedTable("missingTallyTable", transactions, missingRowHtml);
 
 }
 
@@ -173,57 +240,48 @@ function populateMissingTallyTable(transactions) {
 // Exceptions (Amount Mismatches / Type Mismatches)
 // =====================================================
 
+function amountMismatchRowHtml(pair) {
+
+    const bank = pair.bankTransaction;
+    const tally = pair.tallyTransaction;
+
+    return `
+        <tr>
+            <td>${bank.date ?? "-"}</td>
+            <td>${bank.excelRow}</td>
+            <td>${tally.excelRow}</td>
+            <td>${bank.reference ?? "-"}</td>
+            <td>${bank.amount ?? "-"}</td>
+            <td>${tally.amount ?? "-"}</td>
+            <td class="text-danger">${pair.amountDifference}</td>
+        </tr>
+    `;
+
+}
+
+function typeMismatchRowHtml(pair) {
+
+    const bank = pair.bankTransaction;
+    const tally = pair.tallyTransaction;
+
+    return `
+        <tr>
+            <td>${bank.date ?? "-"}</td>
+            <td>${bank.excelRow}</td>
+            <td>${tally.excelRow}</td>
+            <td>${bank.reference ?? "-"}</td>
+            <td>${bank.amount ?? "-"}</td>
+            <td>${bank.transactionType ?? "-"}</td>
+            <td>${tally.transactionType ?? "-"}</td>
+        </tr>
+    `;
+
+}
+
 function populateExceptionTables(exceptions) {
 
-    // console.log("populateExceptionTables called");
-
-    // console.log(exceptions);
-
-    // console.log(exceptions.amountMismatches);
-
-    // console.log(amountMismatchTable);
-
-    const amountRows = exceptions.amountMismatches.map(pair => {
-        // console.log("INSIDER called");
-        const bank = pair.bankTransaction;
-        const tally = pair.tallyTransaction;
-
-        return `
-            <tr style="5px solid red">
-                <td>${bank.date ?? "-"}</td>
-                <td>${bank.excelRow}</td>
-                <td>${tally.excelRow}</td>
-                <td>${bank.reference ?? "-"}</td>
-                <td>${bank.amount ?? "-"}</td>
-                <td>${tally.amount ?? "-"}</td>
-                <td class="text-danger">${pair.amountDifference}</td>
-            </tr>
-        `;
-
-    });
-
-    amountMismatchTable.innerHTML = amountRows.join("");
-
-    const typeRows = exceptions.typeMismatches.map(pair => {
-
-        const bank = pair.bankTransaction;
-        const tally = pair.tallyTransaction;
-
-        return `
-            <tr>
-                <td>${bank.date ?? "-"}</td>
-                <td>${bank.excelRow}</td>
-                <td>${tally.excelRow}</td>
-                <td>${bank.reference ?? "-"}</td>
-                <td>${bank.amount ?? "-"}</td>
-                <td>${bank.transactionType ?? "-"}</td>
-                <td>${tally.transactionType ?? "-"}</td>
-            </tr>
-        `;
-
-    });
-
-    typeMismatchTable.innerHTML = typeRows.join("");
+    setupPaginatedTable("amountMismatchTable", exceptions.amountMismatches, amountMismatchRowHtml);
+    setupPaginatedTable("typeMismatchTable", exceptions.typeMismatches, typeMismatchRowHtml);
 
     exceptionsCount.textContent =
         exceptions.amountMismatches.length + exceptions.typeMismatches.length;
@@ -251,11 +309,8 @@ function duplicateRowHtml(transaction) {
 
 function populateDuplicateTables(duplicates) {
 
-    duplicateBankTable.innerHTML =
-        duplicates.bank.map(duplicateRowHtml).join("");
-
-    duplicateTallyTable.innerHTML =
-        duplicates.tally.map(duplicateRowHtml).join("");
+    setupPaginatedTable("duplicateBankTable", duplicates.bank, duplicateRowHtml);
+    setupPaginatedTable("duplicateTallyTable", duplicates.tally, duplicateRowHtml);
 
     duplicatesCount.textContent =
         duplicates.bank.length + duplicates.tally.length;
@@ -267,27 +322,27 @@ function populateDuplicateTables(duplicates) {
 // Sign Reversal Hints
 // =====================================================
 
+function hintRowHtml(hint) {
+
+    const bank = hint.bankTransaction;
+    const tally = hint.tallyTransaction;
+
+    return `
+        <tr>
+            <td>${bank.date ?? "-"}</td>
+            <td>${bank.excelRow}</td>
+            <td>${tally.excelRow}</td>
+            <td>${bank.amount ?? "-"}</td>
+            <td>${bank.transactionType ?? "-"}</td>
+            <td>${tally.transactionType ?? "-"}</td>
+        </tr>
+    `;
+
+}
+
 function populateHintsTable(hints) {
 
-    const rows = hints.map(hint => {
-
-        const bank = hint.bankTransaction;
-        const tally = hint.tallyTransaction;
-
-        return `
-            <tr>
-                <td>${bank.date ?? "-"}</td>
-                <td>${bank.excelRow}</td>
-                <td>${tally.excelRow}</td>
-                <td>${bank.amount ?? "-"}</td>
-                <td>${bank.transactionType ?? "-"}</td>
-                <td>${tally.transactionType ?? "-"}</td>
-            </tr>
-        `;
-
-    });
-
-    hintsTable.innerHTML = rows.join("");
+    setupPaginatedTable("hintsTable", hints, hintRowHtml);
 
     hintsCount.textContent = hints.length;
 
