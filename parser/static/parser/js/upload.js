@@ -76,7 +76,7 @@ form.addEventListener("submit", async (event) => {
 
         const data = await response.json();
 
-        console.log(data);
+        // console.log(data);
 
         // ==========================================
         // Calculate Statistics
