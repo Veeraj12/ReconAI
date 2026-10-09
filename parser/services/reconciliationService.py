@@ -1,14 +1,12 @@
 import numpy as np
 import pandas as pd
 from collections import defaultdict
-import re   
+
 from parser.parsers.csvParser import FileLoader
 from .configLoader import ConfigLoader
-from .semanticColumnMapper import map_unknown_columns
 
 
 class ReconciliationService:
-    # Did the changes at 110 to 119 line for date consideration if not found in config 
     """
     Reconciles a bank statement against a tally export.
 
@@ -59,16 +57,6 @@ class ReconciliationService:
     ────────────────────────────────────────────────────────────────
     """
 
-    REQUIRED_CANONICAL_FIELDS = {
-            "date",
-        }
-
-    AMOUNT_CANONICAL_FIELDS = {
-        "amount",
-        "debit",
-        "credit",
-    }
-
     BANK_CONFIG_FILE = "genericBank.json"
     TALLY_CONFIG_FILE = "genericTally.json"
 
@@ -105,11 +93,7 @@ class ReconciliationService:
 
     @staticmethod
     def _normalize_key(text):
-        text = str(text).strip().lower()
-        text = re.sub(r"[_\-]+", " ", text)
-        text = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", text)
-        text = re.sub(r"\s+", " ", text)
-        return text
+        return str(text).strip().lower().replace("_", " ")
 
     @classmethod
     def _normalize_headers(cls, df, config):
@@ -122,215 +106,40 @@ class ReconciliationService:
                 if key == standard.lower() or key in normalized_aliases:
                     rename_map[column] = standard
                     break
-                if standard == "date" and re.search(r"\bdate\b", key):
-                    rename_map[column] = standard
-                    break
         return df.rename(columns=rename_map)
-    
-    def _apply_semantic_column_mapping(self, df):
-        """
-        Apply semantic/NLP mapping only to columns that were not
-        recognized by deterministic header aliases.
 
-        Returns:
-            normalized_df, recognition_report
-        """
-
-        canonical_fields = {
-            "date",
-            "reference",
-            "description",
-            "voucher",
-            "ledger",
-            "debit",
-            "credit",
-            "amount",
-            "transactionType",
-            "balance",
-        }
-
-        known_columns = {
-            column
-            for column in df.columns
-            if column in canonical_fields
-        }
-
-        result = map_unknown_columns(
-            df,
-            known_columns,
-        )
-
-        semantic_mapping = result["mapping"]
-        recognition_report = result["report"]
-
-        if semantic_mapping:
-            df = df.rename(columns=semantic_mapping)
-
-        return df, recognition_report
-    # def _validate_columns(self, df, config, label):
-    #     columns = set(df.columns)
-
-    #     required = config.get("requiredHeaders", {})
-
-    #     critical_missing = [c for c in required.get("critical", []) if c not in columns]
-    #     if critical_missing:
-    #         raise ValueError(
-    #             f"{label} file is missing required column(s): "
-    #             f"{', '.join(critical_missing)}"
-    #         )
-
-    #     # Matching is meaningless without some amount signal, regardless
-    #     # of which of the three supported shapes it comes in.
-    #     if not ({"debit", "credit", "amount"} & columns):
-    #         config_file = self.BANK_CONFIG_FILE if label == "Bank" else self.TALLY_CONFIG_FILE
-    #         raise ValueError(
-    #             f"{label} file has no Amount, Debit, or Credit column. "
-    #             f"If your file uses a different header name, add it to "
-    #             f"the alias list in {config_file} and re-upload — no "
-    #             f"code change needed."
-    #         )
-
-    #     recommended_missing = [
-    #         c for c in required.get("recommended", []) if c not in columns
-    #     ]
-    #     if recommended_missing:
-    #         self.warnings.append(
-    #             f"{label} file has no {', '.join(recommended_missing)} "
-    #             f"column(s) — matching will proceed with reduced "
-    #             f"confidence checks where that data would have helped."
-    #         )
-
-    def _validate_columns(
-        self,
-        df,
-        config,
-        label,
-        semantic_report=None,
-    ):
+    def _validate_columns(self, df, config, label):
         columns = set(df.columns)
         required = config.get("requiredHeaders", {})
 
-        # ========================================================
-        # 1. Critical / required columns
-        # ========================================================
-
-        critical_missing = [
-            c
-            for c in required.get("critical", [])
-            if c not in columns
-        ]
-
+        critical_missing = [c for c in required.get("critical", []) if c not in columns]
         if critical_missing:
-
-            details = []
-
-            if semantic_report:
-
-                for column_name, result in semantic_report.items():
-
-                    if result.get("status") not in {
-                        "ambiguous",
-                        "unrecognized",
-                        "collision",
-                    }:
-                        continue
-
-                    candidates = result.get("candidates", [])
-
-                    if not candidates:
-                        continue
-
-                    best_candidate = candidates[0]
-
-                    if best_candidate["field"] in critical_missing:
-
-                        details.append(
-                            f"'{column_name}' was the closest candidate "
-                            f"for '{best_candidate['field']}' "
-                            f"(confidence "
-                            f"{best_candidate['score']:.2f})"
-                        )
-
-            if details:
-                raise ValueError(
-                    f"{label} file is missing required column(s): "
-                    f"{', '.join(critical_missing)}. "
-                    f"Semantic recognition was not confident enough: "
-                    f"{'; '.join(details)}."
-                )
-
             raise ValueError(
                 f"{label} file is missing required column(s): "
                 f"{', '.join(critical_missing)}"
             )
 
-        # ========================================================
-        # 2. Monetary signal
-        # ========================================================
-
-        amount_fields = {
-            "amount",
-            "debit",
-            "credit",
-        }
-
-        if not (amount_fields & columns):
-
-            details = []
-
-            if semantic_report:
-
-                for column_name, result in semantic_report.items():
-
-                    candidates = result.get("candidates", [])
-
-                    if not candidates:
-                        continue
-
-                    best_candidate = candidates[0]
-
-                    if best_candidate["field"] in amount_fields:
-
-                        details.append(
-                            f"'{column_name}' was the closest candidate "
-                            f"for '{best_candidate['field']}' "
-                            f"(confidence "
-                            f"{best_candidate['score']:.2f})"
-                        )
-
-            if details:
-                raise ValueError(
-                    f"{label} file has no recognized monetary "
-                    f"column (Amount, Debit, or Credit). "
-                    f"Semantic recognition was not confident enough: "
-                    f"{'; '.join(details)}."
-                )
-
+        # Matching is meaningless without some amount signal, regardless
+        # of which of the three supported shapes it comes in.
+        if not ({"debit", "credit", "amount"} & columns):
+            config_file = self.BANK_CONFIG_FILE if label == "Bank" else self.TALLY_CONFIG_FILE
             raise ValueError(
-                f"{label} file has no recognized monetary "
-                f"column (Amount, Debit, or Credit). "
-                f"The semantic column mapper could not identify "
-                f"a suitable monetary field."
+                f"{label} file has no Amount, Debit, or Credit column. "
+                f"If your file uses a different header name, add it to "
+                f"the alias list in {config_file} and re-upload — no "
+                f"code change needed."
             )
 
-        # ========================================================
-        # 3. Recommended columns
-        # ========================================================
-
         recommended_missing = [
-            c
-            for c in required.get("recommended", [])
-            if c not in columns
+            c for c in required.get("recommended", []) if c not in columns
         ]
-
         if recommended_missing:
-
             self.warnings.append(
-                f"{label} file has no "
-                f"{', '.join(recommended_missing)} "
+                f"{label} file has no {', '.join(recommended_missing)} "
                 f"column(s) — matching will proceed with reduced "
                 f"confidence checks where that data would have helped."
             )
+
     # ────────────────────────────────────────────────────────────
     # Field cleaning
     # ────────────────────────────────────────────────────────────
@@ -784,18 +593,9 @@ class ReconciliationService:
     def _clean(self, df, config, label):
 
         df = self._normalize_headers(df, config)
-
-        df, semantic_report = self._apply_semantic_column_mapping(df)
-
-        self._validate_columns(
-            df,
-            config,
-            label,
-            semantic_report,
-        )
+        self._validate_columns(df, config, label)
 
         df = df.copy()
-
         # Preserve the original spreadsheet row number (header = row 1)
         # before any rows get dropped, so results can still say "check
         # row 214" even after invalid rows are filtered out.
