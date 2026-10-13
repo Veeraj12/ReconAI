@@ -1,12 +1,14 @@
 import numpy as np
 import pandas as pd
 from collections import defaultdict
-
+import re   
 from parser.parsers.csvParser import FileLoader
 from .configLoader import ConfigLoader
+from .semanticColumnMapper import map_unknown_columns
 
 
 class ReconciliationService:
+    # Did the changes at 110 to 119 line for date consideration if not found in config 
     """
     Reconciles a bank statement against a tally export.
 
@@ -57,6 +59,16 @@ class ReconciliationService:
     ────────────────────────────────────────────────────────────────
     """
 
+    REQUIRED_CANONICAL_FIELDS = {
+            "date",
+        }
+
+    AMOUNT_CANONICAL_FIELDS = {
+        "amount",
+        "debit",
+        "credit",
+    }
+
     BANK_CONFIG_FILE = "genericBank.json"
     TALLY_CONFIG_FILE = "genericTally.json"
 
@@ -93,7 +105,11 @@ class ReconciliationService:
 
     @staticmethod
     def _normalize_key(text):
-        return str(text).strip().lower().replace("_", " ")
+        text = str(text).strip().lower()
+        text = re.sub(r"[_\-]+", " ", text)
+        text = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", text)
+        text = re.sub(r"\s+", " ", text)
+        return text
 
     @classmethod
     def _normalize_headers(cls, df, config):
@@ -106,40 +122,230 @@ class ReconciliationService:
                 if key == standard.lower() or key in normalized_aliases:
                     rename_map[column] = standard
                     break
+                if standard == "date" and re.search(r"\bdate\b", key):
+                    rename_map[column] = standard
+                    break
         return df.rename(columns=rename_map)
+    
+    def _apply_semantic_column_mapping(self, df, config=None):
+        """
+        Apply semantic/NLP mapping only to columns that were not
+        recognized by deterministic header aliases.
 
-    def _validate_columns(self, df, config, label):
+        config (optional) supplies this file's deterministic
+        alias lists, which are forwarded to the mapper so the
+        fuzzy name pre-pass has the same vocabulary the alias
+        layer uses.
+
+        Returns:
+            normalized_df, recognition_report
+        """
+
+        canonical_fields = {
+            "date",
+            "reference",
+            "description",
+            "voucher",
+            "ledger",
+            "debit",
+            "credit",
+            "amount",
+            "transactionType",
+            "balance",
+        }
+
+        known_columns = {
+            column
+            for column in df.columns
+            if column in canonical_fields
+        }
+
+        alias_map = None
+        if config:
+            header_mapping = config.get("headerMapping")
+            if header_mapping:
+                alias_map = {
+                    standard: list(aliases)
+                    for standard, aliases in header_mapping.items()
+                }
+
+        result = map_unknown_columns(
+            df,
+            known_columns,
+            alias_map,
+        )
+
+        semantic_mapping = result["mapping"]
+        recognition_report = result["report"]
+
+        if semantic_mapping:
+            df = df.rename(columns=semantic_mapping)
+
+        return df, recognition_report
+    # def _validate_columns(self, df, config, label):
+    #     columns = set(df.columns)
+
+    #     required = config.get("requiredHeaders", {})
+
+    #     critical_missing = [c for c in required.get("critical", []) if c not in columns]
+    #     if critical_missing:
+    #         raise ValueError(
+    #             f"{label} file is missing required column(s): "
+    #             f"{', '.join(critical_missing)}"
+    #         )
+
+    #     # Matching is meaningless without some amount signal, regardless
+    #     # of which of the three supported shapes it comes in.
+    #     if not ({"debit", "credit", "amount"} & columns):
+    #         config_file = self.BANK_CONFIG_FILE if label == "Bank" else self.TALLY_CONFIG_FILE
+    #         raise ValueError(
+    #             f"{label} file has no Amount, Debit, or Credit column. "
+    #             f"If your file uses a different header name, add it to "
+    #             f"the alias list in {config_file} and re-upload — no "
+    #             f"code change needed."
+    #         )
+
+    #     recommended_missing = [
+    #         c for c in required.get("recommended", []) if c not in columns
+    #     ]
+    #     if recommended_missing:
+    #         self.warnings.append(
+    #             f"{label} file has no {', '.join(recommended_missing)} "
+    #             f"column(s) — matching will proceed with reduced "
+    #             f"confidence checks where that data would have helped."
+    #         )
+
+    def _validate_columns(
+        self,
+        df,
+        config,
+        label,
+        semantic_report=None,
+    ):
         columns = set(df.columns)
         required = config.get("requiredHeaders", {})
 
-        critical_missing = [c for c in required.get("critical", []) if c not in columns]
+        # ========================================================
+        # 1. Critical / required columns
+        # ========================================================
+
+        critical_missing = [
+            c
+            for c in required.get("critical", [])
+            if c not in columns
+        ]
+
         if critical_missing:
+
+            details = []
+
+            if semantic_report:
+
+                for column_name, result in semantic_report.items():
+
+                    if result.get("status") not in {
+                        "ambiguous",
+                        "unrecognized",
+                        "collision",
+                    }:
+                        continue
+
+                    candidates = result.get("candidates", [])
+
+                    if not candidates:
+                        continue
+
+                    best_candidate = candidates[0]
+
+                    if best_candidate["field"] in critical_missing:
+
+                        details.append(
+                            f"'{column_name}' was the closest candidate "
+                            f"for '{best_candidate['field']}' "
+                            f"(confidence "
+                            f"{best_candidate['score']:.2f})"
+                        )
+
+            if details:
+                raise ValueError(
+                    f"{label} file is missing required column(s): "
+                    f"{', '.join(critical_missing)}. "
+                    f"Semantic recognition was not confident enough: "
+                    f"{'; '.join(details)}."
+                )
+
             raise ValueError(
                 f"{label} file is missing required column(s): "
                 f"{', '.join(critical_missing)}"
             )
 
-        # Matching is meaningless without some amount signal, regardless
-        # of which of the three supported shapes it comes in.
-        if not ({"debit", "credit", "amount"} & columns):
-            config_file = self.BANK_CONFIG_FILE if label == "Bank" else self.TALLY_CONFIG_FILE
+        # ========================================================
+        # 2. Monetary signal
+        # ========================================================
+
+        amount_fields = {
+            "amount",
+            "debit",
+            "credit",
+        }
+
+        if not (amount_fields & columns):
+
+            details = []
+
+            if semantic_report:
+
+                for column_name, result in semantic_report.items():
+
+                    candidates = result.get("candidates", [])
+
+                    if not candidates:
+                        continue
+
+                    best_candidate = candidates[0]
+
+                    if best_candidate["field"] in amount_fields:
+
+                        details.append(
+                            f"'{column_name}' was the closest candidate "
+                            f"for '{best_candidate['field']}' "
+                            f"(confidence "
+                            f"{best_candidate['score']:.2f})"
+                        )
+
+            if details:
+                raise ValueError(
+                    f"{label} file has no recognized monetary "
+                    f"column (Amount, Debit, or Credit). "
+                    f"Semantic recognition was not confident enough: "
+                    f"{'; '.join(details)}."
+                )
+
             raise ValueError(
-                f"{label} file has no Amount, Debit, or Credit column. "
-                f"If your file uses a different header name, add it to "
-                f"the alias list in {config_file} and re-upload — no "
-                f"code change needed."
+                f"{label} file has no recognized monetary "
+                f"column (Amount, Debit, or Credit). "
+                f"The semantic column mapper could not identify "
+                f"a suitable monetary field."
             )
 
+        # ========================================================
+        # 3. Recommended columns
+        # ========================================================
+
         recommended_missing = [
-            c for c in required.get("recommended", []) if c not in columns
+            c
+            for c in required.get("recommended", [])
+            if c not in columns
         ]
+
         if recommended_missing:
+
             self.warnings.append(
-                f"{label} file has no {', '.join(recommended_missing)} "
+                f"{label} file has no "
+                f"{', '.join(recommended_missing)} "
                 f"column(s) — matching will proceed with reduced "
                 f"confidence checks where that data would have helped."
             )
-
     # ────────────────────────────────────────────────────────────
     # Field cleaning
     # ────────────────────────────────────────────────────────────
@@ -147,7 +353,7 @@ class ReconciliationService:
     @staticmethod
     def _clean_amount(series):
         cleaned = (
-            series.astype(str)
+            series.fillna("").astype(str)
             .str.strip()
             .str.replace("₹", "", regex=False)
             .str.replace("Rs.", "", regex=False)
@@ -155,11 +361,30 @@ class ReconciliationService:
             .str.replace(",", "", regex=False)
         )
 
-        is_negative_paren = cleaned.str.startswith("(") & cleaned.str.endswith(")")
-        cleaned = (
-            cleaned.str.replace("(", "", regex=False)
-            .str.replace(")", "", regex=False)
+        cleaned = cleaned.replace({
+            "": None,
+            "nan": None,
+            "NaN": None,
+            "None": None,
+            "<NA>": None,
+        })
+
+        is_negative_paren = (
+            cleaned.fillna("")
+            .str.startswith("(")
+            .fillna(False)
+            & cleaned.fillna("")
+            .str.endswith(")")
+            .fillna(False)
         )
+        cleaned = (
+            cleaned.fillna("")
+            .str.replace("(", "", regex=False)
+            .fillna("")
+            .str.replace(")", "", regex=False)
+            .fillna("")
+        )
+        cleaned = cleaned.where(is_negative_paren, cleaned.str.replace("-", "", regex=False))
 
         numeric = pd.to_numeric(cleaned, errors="coerce")
         numeric = numeric.where(~is_negative_paren, -numeric)
@@ -197,7 +422,8 @@ class ReconciliationService:
         # -----------------------------------------
 
         cleaned = (
-            series.astype(str)
+            series.fillna("")
+            .astype(str)
             .str.strip()
             .replace({
                 "": pd.NA,
@@ -217,7 +443,9 @@ class ReconciliationService:
 
         if (
             len(non_null) > 0
-            and non_null.str.fullmatch(r"\d+(\.\d+)?").all()
+            and non_null.astype(str)
+            .str.fullmatch(r"\d+(\.\d+)?")
+            .all()
         ):
             return (
                 pd.to_datetime(
@@ -391,7 +619,8 @@ class ReconciliationService:
         # ---------------------------------------
 
         cleaned = (
-            series.astype(str)
+            series.fillna("")
+            .astype(str)
             .str.strip()
             .replace({
                 "": None,
@@ -529,18 +758,29 @@ class ReconciliationService:
         ).dt.normalize()
 
     @staticmethod
+    def _clean_ref_raw(series):
+        cleaned = series.fillna("").astype(str)
+        cleaned = cleaned.str.strip().str.upper()
+        cleaned = cleaned.replace({"NAN": "", "NONE": "", "<NA>": ""})
+        cleaned = cleaned.str.replace(r"[\s\-/]", "", regex=True)
+        return cleaned
+
+    @staticmethod
     def _clean_reference(series):
-        cleaned = series.astype(str).str.strip().str.upper()
+        cleaned = series.fillna("").astype(str)
+        cleaned = cleaned.str.strip().str.upper()
         cleaned = cleaned.replace({"NAN": "", "NONE": "", "<NA>": ""})
         cleaned = cleaned.str.replace(r"[\s\-/]", "", regex=True)
         return cleaned
 
     @classmethod
     def _clean_type(cls, series):
-        cleaned = series.astype(str).str.strip().str.upper()
-        return cleaned.map(
+        cleaned = series.fillna("").astype(str)
+        cleaned = cleaned.str.strip().str.upper()
+        cleaned = cleaned.map(
             lambda v: cls.TYPE_ALIASES.get(v, v if v not in ("NAN", "NONE") else None)
         )
+        return cleaned
 
     def _resolve_amount_type(self, df):
         """
@@ -593,9 +833,18 @@ class ReconciliationService:
     def _clean(self, df, config, label):
 
         df = self._normalize_headers(df, config)
-        self._validate_columns(df, config, label)
+
+        df, semantic_report = self._apply_semantic_column_mapping(df, config)
+
+        self._validate_columns(
+            df,
+            config,
+            label,
+            semantic_report,
+        )
 
         df = df.copy()
+
         # Preserve the original spreadsheet row number (header = row 1)
         # before any rows get dropped, so results can still say "check
         # row 214" even after invalid rows are filtered out.
@@ -613,8 +862,10 @@ class ReconciliationService:
         df["transactionType"] = ttype
 
         if "description" in df.columns:
-            df["description"] = df["description"].astype(str).str.strip()
-            df["description"] = df["description"].replace({"nan": ""})
+            text_series = df["description"]
+            filled = text_series.fillna("").astype(str)
+            filled = filled.str.strip()
+            df["description"] = filled
         else:
             df["description"] = ""
 
